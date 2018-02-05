@@ -11,6 +11,7 @@ import javax.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -25,7 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class ICommentServiceImpl extends AbstractService implements ICommentService {
 	
 	@Resource
-	private RedisTemplate<String, Object> redisTemplate;
+	private StringRedisTemplate stringRedisTemplate;
 	
 	@Override
 	public void add(Comment comment) {
@@ -35,7 +36,7 @@ public class ICommentServiceImpl extends AbstractService implements ICommentServ
 			comment.setCommentID(UUID.randomUUID().toString());
 			ObjectMapper objectMapper = new ObjectMapper();
 			String jsonStr = objectMapper.writeValueAsString(comment);
-			redisTemplate.opsForList().leftPush("list:comment:" + comment.getIsbn(), jsonStr);
+			stringRedisTemplate.opsForList().leftPush("list:comment:" + comment.getIsbn(), jsonStr);
 		} catch (JsonParseException e) {
 			e.printStackTrace();
 		} catch (JsonMappingException e) {
@@ -67,17 +68,17 @@ public class ICommentServiceImpl extends AbstractService implements ICommentServ
 		}
 		List<Comment> commentList = null;
 		
-		List<Object> list = redisTemplate.opsForList().range("list:comment:" + isbn, start, end);
+		List<String> list = stringRedisTemplate.opsForList().range("list:comment:" + isbn, start, end);
 		if (!CollectionUtils.isEmpty(list))
 		{
 			commentList = new ArrayList<Comment>();
 			ObjectMapper objectMapper = new ObjectMapper();
-			for(Object jsonStr : list)
+			for(String jsonStr : list)
 			{
 				try {
-					Comment comment = objectMapper.readValue(jsonStr.toString(), Comment.class);
+					Comment comment = objectMapper.readValue(jsonStr, Comment.class);
 					// 加载评论的点赞数
-					Double dianzhangcount = redisTemplate.opsForZSet().score("zset:comment:dianzhang", comment.getCommentID());
+					Double dianzhangcount = stringRedisTemplate.opsForZSet().score("zset:comment:dianzhang", comment.getCommentID());
 					comment.setThumbsupCount(dianzhangcount == null ? 0 : dianzhangcount.intValue());
 					commentList.add(comment);
 				} catch (JsonParseException e) {
@@ -106,8 +107,8 @@ public class ICommentServiceImpl extends AbstractService implements ICommentServ
 		Integer count = 0;
 		String redisKey = "zset:comment:dianzhang";
 		
-		redisTemplate.opsForZSet().incrementScore(redisKey, commentID, 1.0D);
-		Double dianzhang = redisTemplate.opsForZSet().score(redisKey, commentID);
+		stringRedisTemplate.opsForZSet().incrementScore(redisKey, commentID, 1.0D);
+		Double dianzhang = stringRedisTemplate.opsForZSet().score(redisKey, commentID);
 		if (dianzhang != null)
 		{
 			count = dianzhang.intValue();

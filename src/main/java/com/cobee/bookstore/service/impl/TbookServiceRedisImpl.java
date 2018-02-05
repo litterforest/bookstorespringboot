@@ -11,6 +11,7 @@ import javax.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -25,7 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class TbookServiceRedisImpl extends AbstractService implements ITbookService { 
 	
 	@Resource
-	private RedisTemplate<String, Object> redisTemplate;
+	private StringRedisTemplate stringRedisTemplate;
 	
 	public Tbook get(String isbn) {
 		if (StringUtils.isBlank(isbn))
@@ -35,7 +36,7 @@ public class TbookServiceRedisImpl extends AbstractService implements ITbookServ
 		Tbook tbook = null;
 		try
 		{
-			String bookJsonStr = redisTemplate.opsForHash().get("hash:books", isbn).toString();
+			String bookJsonStr = stringRedisTemplate.opsForHash().get("hash:books", isbn).toString();
 			if (StringUtils.isNotBlank(bookJsonStr))
 			{
 				ObjectMapper objectMapper = new ObjectMapper();
@@ -55,20 +56,20 @@ public class TbookServiceRedisImpl extends AbstractService implements ITbookServ
 		
 		List<Tbook> bookList = null;
 		
-		Set<Object> booksSet = redisTemplate.opsForZSet().reverseRange("zset:books", 0, -1);
+		Set<String> booksSet = stringRedisTemplate.opsForZSet().reverseRange("zset:books", 0, -1);
 		if (!CollectionUtils.isEmpty(booksSet))
 		{
 			ObjectMapper objectMapper = new ObjectMapper();
 			bookList = new ArrayList<Tbook>();
-			for (Object str : booksSet)
+			for (String str : booksSet)
 			{
-				String bookJsonStr = redisTemplate.opsForHash().get("hash:books", str).toString();
+				String bookJsonStr = stringRedisTemplate.opsForHash().get("hash:books", str).toString();
 				if (StringUtils.isNotBlank(bookJsonStr))
 				{
 					try {
 						Tbook tbook = objectMapper.readValue(bookJsonStr, Tbook.class);
 						// 查找书本被浏览的次数
-						Double pageViews = redisTemplate.opsForZSet().score("zset:bookpageview", tbook.getIsbn());
+						Double pageViews = stringRedisTemplate.opsForZSet().score("zset:bookpageview", tbook.getIsbn());
 						if (pageViews != null)
 						{
 							tbook.setPageViews(pageViews.intValue());
@@ -100,13 +101,13 @@ public class TbookServiceRedisImpl extends AbstractService implements ITbookServ
 	@Override
 	public void addBookPageView(String isbn) {
 		// 如果key不存在，会自动创建
-		redisTemplate.opsForZSet().incrementScore("zset:bookpageview", isbn, 1.0D);
+		stringRedisTemplate.opsForZSet().incrementScore("zset:bookpageview", isbn, 1.0D);
 	}
 
 	@Override
 	public Integer getBookPageView(String isbn) {
 		// 如果key不存在，会自动创建
-		Double pageViews = redisTemplate.opsForZSet().score("zset:bookpageview", isbn);
+		Double pageViews = stringRedisTemplate.opsForZSet().score("zset:bookpageview", isbn);
 		return pageViews == null ? 0 : pageViews.intValue();
 	}
 
